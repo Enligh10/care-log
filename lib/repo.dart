@@ -183,7 +183,7 @@ class Repo {
     final ref = logs.doc();
     // Don't wait for the server: Firestore queues the write offline and
     // the snapshot listeners update immediately.
-    final write = ref.set(data);
+    final write = ref.set(data).catchError((Object _) {});
     final entry = LogEntry(
       id: ref.id,
       kind: switch (fields['kind']) {

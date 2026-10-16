@@ -128,11 +128,11 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
     debugPrint('Firebase init in widget callback failed: $e');
   }
 
-  User? user = FirebaseAuth.instance.currentUser;
-  user ??= await FirebaseAuth.instance
-      .authStateChanges()
-      .first
-      .timeout(const Duration(seconds: 6), onTimeout: () => null);
+  final user = FirebaseAuth.instance.currentUser ??
+      await FirebaseAuth.instance
+          .authStateChanges()
+          .first
+          .timeout(const Duration(seconds: 6), onTimeout: () => null);
   if (user == null) {
     await showWidgetMessage('Open Care Log and sign in.');
     return;
@@ -161,12 +161,10 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
     String? notice;
 
     if (isLog && medId != null) {
-      Med? med;
-      for (final m in meds) {
-        if (m.id == medId) med = m;
-      }
-      if (med != null) {
-        final prior = today.where((l) => l.kind == LogKind.med && l.medId == med!.id).toList();
+      final matches = meds.where((m) => m.id == medId).toList();
+      if (matches.isNotEmpty) {
+        final med = matches.first;
+        final prior = today.where((l) => l.kind == LogKind.med && l.medId == med.id).toList();
         if (prior.isNotEmpty) {
           notice = 'Already logged ✓ ${DateFormat.jm().format(prior.first.at)}';
         } else {
