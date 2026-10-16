@@ -1,0 +1,103 @@
+rules_version = '2';
+
+// Care Log security rules.
+// Paste into Firebase console → Firestore Database → Rules → Publish.
+//
+// Data is grouped into profiles (one per person being tracked). Only people
+// linked to a profile can see or change it. People get linked by creating
+// the profile or by using an invite code made by someone already linked.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profilePath(pid) {
+      return /databases/$(database)/documents/profiles/$(pid);
+    }
+
+    function isMember(pid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/profiles/$(pid)/members/$(request.auth.uid));
+    }
+
+    function isOwner(pid) {
+      return signedIn() && get(profilePath(pid)).data.ownerUid == request.auth.uid;
+    }
+
+    function validInvite(pid, code) {
+      let inv = get(/databases/$(database)/documents/invites/$(code));
+      return inv.data.profileId == pid && inv.data.expiresAt > request.time;
+    }
+
+    // iPhone Shortcuts add doses without signing in. They must carry the
+    // profile's private key and can only create a medicine or symptom entry
+    // timestamped "now".
+    function isValidShortcutLog(pid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['kind', 'medId', 'medName', 'dose', 'symptomName',
+                               'severity', 'byName', 'src', 'qk', 'at'])
+        && d.src == 'shortcut'
+        && (d.kind == 'med' || d.kind == 'symptom')
+        && d.qk is string
+        && d.qk.size() >= 20
+        && d.qk == get(/databases/$(database)/documents/profiles/$(pid)/config/quicklog).data.key
+        && d.at is timestamp
+        && d.at > request.time - duration.value(30, 'm')
+        && d.at < request.time + duration.value(30, 'm');
+    }
+
+    // Personal settings: theme, which profiles this account uses.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Invite codes: anyone signed in can look one up by its exact code, but
+    // nobody can list them.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && isMember(request.resource.data.profileId);
+      allow delete: if signedIn() && isMember(resource.data.profileId);
+    }
+
+    match /profiles/{pid} {
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isMember(pid);
+      allow update: if isMember(pid)
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if isOwner(pid);
+
+      match /members/{uid} {
+        allow read: if isMember(pid);
+        // Join yourself: as the owner of a new profile, or with a valid code.
+        allow create: if signedIn() && uid == request.auth.uid && (
+          getAfter(profilePath(pid)).data.ownerUid == request.auth.uid
+          || validInvite(pid, request.resource.data.invite)
+        );
+        allow update: if signedIn() && uid == request.auth.uid && isMember(pid);
+        allow delete: if signedIn() && (uid == request.auth.uid || isOwner(pid));
+      }
+
+      match /logs/{id} {
+        allow read, update, delete: if isMember(pid);
+        allow create: if isMember(pid) || isValidShortcutLog(pid);
+      }
+
+      match /meds/{id} {
+        allow read, write: if isMember(pid);
+      }
+
+      match /symptomTypes/{id} {
+        allow read, write: if isMember(pid);
+      }
+
+      match /config/{id} {
+        allow read, write: if isMember(pid);
+      }
+    }
+  }
+}
