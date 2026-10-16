@@ -88,6 +88,7 @@ jobs:
           CARELOG_KEY_ALIAS: carelog
         run: |
           flutter build apk --release \
+            --target-platform android-arm64 \
             --build-number=${{ github.run_number }} \
             --dart-define-from-file=config/firebase.json 2>&1 | tee -a "$LOG"
 

@@ -97,8 +97,8 @@ class Repo {
     return meds.doc(id).update({
       if (name != null) 'name': name.trim(),
       if (dose != null) 'dose': dose.trim(),
-      if (color != null) 'color': color,
-      if (status != null) 'status': status,
+      'color': ?color,
+      'status': ?status,
     });
   }
 
