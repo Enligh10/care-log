@@ -1,9 +1,9 @@
 {
-  "FB_API_KEY": "",
-  "FB_PROJECT_ID": "",
-  "FB_SENDER_ID": "",
-  "FB_AUTH_DOMAIN": "",
-  "FB_STORAGE_BUCKET": "",
-  "FB_WEB_APP_ID": "",
-  "FB_ANDROID_APP_ID": ""
+  "FB_API_KEY": "AIzaSyCthmUqJLKXAL3_f4KfV-cajF8PvoGEiyc",
+  "FB_PROJECT_ID": "care-log-e00d3",
+  "FB_SENDER_ID": "520168328703",
+  "FB_AUTH_DOMAIN": "care-log-e00d3.firebaseapp.com",
+  "FB_STORAGE_BUCKET": "care-log-e00d3.firebasestorage.app",
+  "FB_WEB_APP_ID": "1:520168328703:web:6d9a065a59a7bef1c46bca",
+  "FB_ANDROID_APP_ID": "1:520168328703:android:7e1feea539e15616c46bca"
 }
