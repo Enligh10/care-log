@@ -27,9 +27,31 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/widget_smaller"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/carelog_widget_smaller"
+            android:gravity="center"
+            android:text="A−"
+            android:textColor="@color/widget_subtext"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_bigger"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/carelog_widget_bigger"
+            android:gravity="center"
+            android:text="A+"
+            android:textColor="@color/widget_subtext"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
             android:id="@+id/widget_refresh"
             android:layout_width="40dp"
-            android:layout_height="32dp"
+            android:layout_height="36dp"
             android:contentDescription="@string/carelog_widget_refresh"
             android:gravity="center"
             android:text="↻"

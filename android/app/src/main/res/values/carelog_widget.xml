@@ -4,6 +4,8 @@
     <string name="carelog_widget_refresh">Refresh</string>
     <string name="carelog_widget_description">Tap a medicine to log it</string>
     <string name="carelog_widget_setup">Open Care Log to set up.</string>
+    <string name="carelog_widget_smaller">Smaller text</string>
+    <string name="carelog_widget_bigger">Larger text</string>
     <color name="widget_bg">#FFF6F8FB</color>
     <color name="widget_text">#FF1A1C1E</color>
     <color name="widget_subtext">#FF5C6670</color>

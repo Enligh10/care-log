@@ -116,6 +116,28 @@ class Repo {
     });
   }
 
+  /// How many logged doses a medicine has (for the delete warning).
+  Future<int> countMedLogs(String medId) async {
+    final s = await logs.where('medId', isEqualTo: medId).get();
+    return s.docs.length;
+  }
+
+  /// Permanently deletes a medicine and every dose logged for it.
+  Future<int> deleteMedPermanently(String medId) async {
+    final s = await logs.where('medId', isEqualTo: medId).get();
+    final docs = s.docs;
+    // Firestore allows up to 500 writes per batch.
+    for (var i = 0; i < docs.length; i += 400) {
+      final batch = db.batch();
+      for (final d in docs.skip(i).take(400)) {
+        batch.delete(d.reference);
+      }
+      await batch.commit();
+    }
+    await meds.doc(medId).delete();
+    return docs.length;
+  }
+
   // ---------------------------------------------------------------- symptoms
 
   Future<void> addSymptom(String name) async {

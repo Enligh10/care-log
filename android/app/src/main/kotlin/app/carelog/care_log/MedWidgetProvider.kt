@@ -2,6 +2,7 @@ package app.carelog.care_log
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -11,6 +12,7 @@ import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import es.antonborri.home_widget.HomeWidgetBackgroundReceiver
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
+import es.antonborri.home_widget.HomeWidgetPlugin
 import es.antonborri.home_widget.HomeWidgetProvider
 
 /**
@@ -22,6 +24,21 @@ import es.antonborri.home_widget.HomeWidgetProvider
  * callback, which logs the dose without opening the app.
  */
 class MedWidgetProvider : HomeWidgetProvider() {
+
+    /** Handles the A− / A+ buttons right here, so resizing is instant. */
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_SIZE) {
+            val prefs = HomeWidgetPlugin.getData(context)
+            val current = (prefs.getString("size", null) ?: "$DEFAULT_SIZE").toIntOrNull() ?: DEFAULT_SIZE
+            val next = (current + intent.getIntExtra(EXTRA_DELTA, 0)).coerceIn(0, MAX_SIZE)
+            prefs.edit().putString("size", next.toString()).apply()
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(ComponentName(context, MedWidgetProvider::class.java))
+            if (ids.isNotEmpty()) onUpdate(context, manager, ids)
+            return
+        }
+        super.onReceive(context, intent)
+    }
 
     @Suppress("DEPRECATION")
     override fun onUpdate(
@@ -43,6 +60,8 @@ class MedWidgetProvider : HomeWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_title, openApp)
             views.setOnClickPendingIntent(R.id.widget_refresh, refresh)
+            views.setOnClickPendingIntent(R.id.widget_smaller, sizeIntent(context, -1))
+            views.setOnClickPendingIntent(R.id.widget_bigger, sizeIntent(context, 1))
 
             // Shown by the list when it has no rows.
             views.setTextViewText(
@@ -93,7 +112,26 @@ class MedWidgetProvider : HomeWidgetProvider() {
         return PendingIntent.getBroadcast(context, 1, intent, flags)
     }
 
+    private fun sizeIntent(context: Context, delta: Int): PendingIntent {
+        val intent = Intent(context, MedWidgetProvider::class.java).apply {
+            action = ACTION_SIZE
+            putExtra(EXTRA_DELTA, delta)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            if (delta < 0) 2 else 3,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     companion object {
         private const val STALE_AFTER_MS = 15 * 60 * 1000L
+        private const val ACTION_SIZE = "app.carelog.care_log.WIDGET_SIZE"
+        private const val EXTRA_DELTA = "delta"
+
+        /** Sizes: 0 small, 1 medium, 2 large, 3 extra large. */
+        const val DEFAULT_SIZE = 1
+        const val MAX_SIZE = 3
     }
 }

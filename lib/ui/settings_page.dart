@@ -60,6 +60,7 @@ class SettingsPage extends StatelessWidget {
                   isThreeLine: true,
                   onTap: () => requestPinWidget(),
                 ),
+                const _WidgetSizeSetting(),
               ],
               const _Header('iPhone'),
               ListTile(
@@ -143,22 +144,77 @@ class _MedRow extends StatelessWidget {
   final AppState state;
   final Med med;
 
+  Future<void> _deleteForever(BuildContext context) async {
+    int? count;
+    try {
+      count = await state.repo.countMedLogs(med.id);
+    } catch (_) {}
+    if (!context.mounted) return;
+    final scheme = Theme.of(context).colorScheme;
+    final doses = count == null
+        ? 'every logged dose'
+        : count == 1
+            ? '1 logged dose'
+            : '$count logged doses';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(Icons.warning_amber_rounded, color: scheme.error, size: 36),
+        title: Text('Permanently delete ${med.name}?'),
+        content: Text(
+          'This is permanent and can\'t be undone. All saved data for ${med.name} will be lost, '
+          'including $doses, for everyone linked to this profile.\n\n'
+          'To hide it but keep its history, use Remove instead.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete forever'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      final n = await state.repo.deleteMedPermanently(med.id);
+      if (context.mounted) {
+        toast(context, '${med.name} deleted, with $n logged ${n == 1 ? 'dose' : 'doses'}');
+      }
+    } catch (e) {
+      if (context.mounted) toast(context, 'Couldn\'t delete: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final status = switch (med.status) {
+      'paused' => 'Paused',
+      'archived' => 'Removed',
+      _ => 'Active',
+    };
     return ListTile(
       leading: CircleAvatar(radius: 8, backgroundColor: med.colorValue),
       title: Text(med.label),
-      subtitle: Text(switch (med.status) {
-        'paused' => 'Paused',
-        'archived' => 'Removed',
-        _ => 'Active',
-      }),
-      trailing: med.isArchived
-          ? TextButton(
+      subtitle: Text([status, if (med.scheduleLabel.isNotEmpty) med.scheduleLabel].join(' · ')),
+      contentPadding: const EdgeInsets.only(left: 16, right: 4),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (med.isArchived)
+            TextButton(
               onPressed: () => state.repo.updateMed(med.id, status: 'active'),
               child: const Text('Restore'),
-            )
-          : const Icon(Icons.chevron_right),
+            ),
+          IconButton(
+            tooltip: 'Delete forever',
+            icon: Icon(Icons.delete_forever_outlined, color: scheme.error),
+            onPressed: () => _deleteForever(context),
+          ),
+        ],
+      ),
       onTap: med.isArchived ? null : () => showMedActions(context, state, med),
     );
   }
@@ -306,6 +362,60 @@ class CopyBox extends StatelessWidget {
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: text));
               if (context.mounted) toast(context, 'Copied');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WidgetSizeSetting extends StatefulWidget {
+  const _WidgetSizeSetting();
+
+  @override
+  State<_WidgetSizeSetting> createState() => _WidgetSizeSettingState();
+}
+
+class _WidgetSizeSettingState extends State<_WidgetSizeSetting> {
+  int? _size;
+
+  @override
+  void initState() {
+    super.initState();
+    getWidgetSize().then((v) {
+      if (mounted) setState(() => _size = v);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Widget text size', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(
+            'Bigger is easier to read; smaller fits more medicines. '
+            'The A− and A+ buttons on the widget change this too.',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 10),
+          SegmentedButton<int>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 0, label: Text('Small')),
+              ButtonSegment(value: 1, label: Text('Medium')),
+              ButtonSegment(value: 2, label: Text('Large')),
+              ButtonSegment(value: 3, label: Text('XL')),
+            ],
+            selected: {_size ?? 1},
+            onSelectionChanged: (s) async {
+              setState(() => _size = s.first);
+              await setWidgetSize(s.first);
             },
           ),
         ],

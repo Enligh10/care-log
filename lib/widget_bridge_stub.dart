@@ -16,3 +16,7 @@ Future<void> syncWidget(
 Future<void> showWidgetMessage(String message) async {}
 
 Future<void> requestPinWidget() async {}
+
+Future<int> getWidgetSize() async => 1;
+
+Future<void> setWidgetSize(int size) async {}

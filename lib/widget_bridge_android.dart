@@ -33,6 +33,23 @@ Future<void> requestPinWidget() async {
   await HomeWidget.requestPinWidget(qualifiedAndroidName: _provider);
 }
 
+/// Widget size: 0 small, 1 medium (default), 2 large, 3 extra large.
+/// The widget's own A− / A+ buttons change the same setting.
+Future<int> getWidgetSize() async {
+  try {
+    final v = await HomeWidget.getWidgetData<String>('size');
+    return (int.tryParse(v ?? '') ?? 1).clamp(0, 3);
+  } catch (_) {
+    return 1;
+  }
+}
+
+Future<void> setWidgetSize(int size) async {
+  if (!widgetsSupported) return;
+  await _save('size', '${size.clamp(0, 3)}');
+  await _redraw();
+}
+
 Future<void> _save(String key, String value) =>
     HomeWidget.saveWidgetData<String>(key, value);
 
