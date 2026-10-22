@@ -989,7 +989,7 @@ class _StatsCard extends StatelessWidget {
         final asNeeded = med?.asNeeded ?? false;
         children.add(_StatWrap([
           if (asNeeded) ('Days used', '${daysAny.length} / $elapsedDays')
-          else if (multi) ('Days all ${med!.dosesPerDay} taken', '${daysFull.length} / $elapsedDays')
+          else if (multi) ('Days all ${med.dosesPerDay} taken', '${daysFull.length} / $elapsedDays')
           else ('Days taken', '${daysFull.length} / $elapsedDays'),
           ('Doses', '$doses'),
           if (asNeeded || multi)
