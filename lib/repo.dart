@@ -78,7 +78,12 @@ class Repo {
 
   // ---------------------------------------------------------------- medicines
 
-  Future<void> addMed({required String name, required String dose, required int color}) async {
+  Future<void> addMed({
+    required String name,
+    required String dose,
+    required int color,
+    int dosesPerDay = 1,
+  }) async {
     final existing = await meds.get();
     final maxSort = existing.docs
         .map((d) => (d.data()['sort'] as num?)?.toInt() ?? 0)
@@ -87,18 +92,27 @@ class Repo {
       'name': name.trim(),
       'dose': dose.trim(),
       'color': color,
+      'dosesPerDay': dosesPerDay,
       'status': 'active',
       'sort': maxSort + 1,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  Future<void> updateMed(String id, {String? name, String? dose, int? color, String? status}) {
+  Future<void> updateMed(
+    String id, {
+    String? name,
+    String? dose,
+    int? color,
+    String? status,
+    int? dosesPerDay,
+  }) {
     return meds.doc(id).update({
       if (name != null) 'name': name.trim(),
       if (dose != null) 'dose': dose.trim(),
       'color': ?color,
       'status': ?status,
+      'dosesPerDay': ?dosesPerDay,
     });
   }
 

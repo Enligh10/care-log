@@ -80,6 +80,18 @@ def patch_manifest() -> None:
         if n != 1:
             fail("could not find </application>")
 
+    if "MedWidgetService" not in text:
+        service = """
+        <!-- Rows for the widget's scrolling list -->
+        <service
+            android:name=".MedWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+    </application>"""
+        text, n = re.subn(r"\s*</application>", service, text, count=1)
+        if n != 1:
+            fail("could not find </application> for the widget service")
+
     path.write_text(text)
     print("patched", path.relative_to(ROOT))
 

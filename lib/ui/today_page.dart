@@ -110,23 +110,39 @@ Future<void> _newSymptom(BuildContext context, AppState state) async {
 
 Future<void> logMedWithUndo(BuildContext context, AppState state, Med med) async {
   final doses = state.dosesToday(med);
+  final count = doses.length;
   if (doses.isNotEmpty) {
     final last = doses.first;
-    final ok = await confirm(
-      context,
-      title: '${med.name} already logged',
-      message: 'Logged at ${DateFormat.jm().format(last.at)}'
-          '${last.byName.isEmpty ? '' : ' by ${last.byName}'}. Log another dose?',
-      action: 'Log another',
-    );
-    if (!ok) return;
+    final when = DateFormat.jm().format(last.at);
+    final by = last.byName.isEmpty ? '' : ' by ${last.byName}';
+    String? question;
+    if (DateTime.now().difference(last.at).inSeconds.abs() < 90) {
+      question = 'A dose was logged at $when$by, just now. Log another?';
+    } else if (!med.asNeeded && count >= med.dosesPerDay) {
+      question = med.dosesPerDay == 1
+          ? 'Already logged today at $when$by. Log an extra dose?'
+          : 'All ${med.dosesPerDay} doses are logged today (last at $when$by). Log an extra dose?';
+    }
+    if (question != null) {
+      final ok = await confirm(
+        context,
+        title: med.name,
+        message: question,
+        action: 'Log another',
+      );
+      if (!ok) return;
+    }
   }
   HapticFeedback.mediumImpact();
   final entry = await state.repo.logMed(med, me: state.me);
   if (!context.mounted) return;
+  final n = count + 1;
+  final which = med.asNeeded || med.dosesPerDay == 1
+      ? (n > 1 ? ' (dose $n today)' : '')
+      : ' ($n of ${med.dosesPerDay})';
   toast(
     context,
-    'Logged ${med.name} · ${DateFormat.jm().format(entry.at)}',
+    'Logged ${med.name}$which · ${DateFormat.jm().format(entry.at)}',
     action: SnackBarAction(label: 'Undo', onPressed: () => state.repo.deleteLog(entry.id)),
   );
 }
@@ -222,15 +238,49 @@ class _MedCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final doses = state.dosesToday(med);
-    final taken = doses.isNotEmpty;
+    final count = doses.length;
+    final progress = med.progress(count);
+    final done = progress == DoseProgress.complete || progress == DoseProgress.extra;
+    final partial = progress == DoseProgress.partial;
     final color = med.colorValue;
-    final last = taken ? doses.first : null;
+    final last = doses.isEmpty ? null : doses.first;
+
+    String status;
+    if (last == null) {
+      status = med.asNeeded
+          ? 'Tap when taken'
+          : med.dosesPerDay == 1
+              ? 'Tap when taken'
+              : '0 of ${med.dosesPerDay} · tap when taken';
+    } else {
+      final time = DateFormat.jm().format(last.at);
+      final who = last.byName.isEmpty ? '' : ' · ${last.byName}';
+      if (med.asNeeded) {
+        status = '×$count today · $time';
+      } else if (med.dosesPerDay == 1) {
+        status = '$time${count > 1 ? ' ×$count' : ''}$who';
+      } else {
+        status = '$count of ${med.dosesPerDay} · $time';
+      }
+    }
+
+    final subtitle = [
+      if (med.dose.isNotEmpty) med.dose,
+      if (med.scheduleLabel.isNotEmpty) med.scheduleLabel,
+    ].join(' · ');
 
     return Material(
-      color: taken ? color.withValues(alpha: 0.16) : scheme.surfaceContainerLow,
+      color: done
+          ? color.withValues(alpha: 0.16)
+          : partial
+              ? color.withValues(alpha: 0.07)
+              : scheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: taken ? color : scheme.outlineVariant, width: taken ? 2 : 1),
+        side: BorderSide(
+          color: done || partial ? color : scheme.outlineVariant,
+          width: done ? 2 : (partial ? 1.5 : 1),
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -270,31 +320,35 @@ class _MedCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (med.dose.isNotEmpty)
+              if (subtitle.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(left: 20),
-                  child: Text(med.dose,
+                  child: Text(subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                 ),
               const SizedBox(height: 10),
+              if (med.dosesPerDay > 1) ...[
+                _DoseDots(target: med.dosesPerDay, taken: count, color: color),
+                const SizedBox(height: 6),
+              ],
               Row(
                 children: [
-                  Icon(
-                    taken ? Icons.check_circle : Icons.radio_button_unchecked,
-                    size: 22,
-                    color: taken ? color : scheme.outline,
-                  ),
-                  const SizedBox(width: 6),
+                  if (med.dosesPerDay <= 1) ...[
+                    Icon(
+                      done ? Icons.check_circle : Icons.radio_button_unchecked,
+                      size: 22,
+                      color: done ? color : scheme.outline,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   Expanded(
                     child: Text(
-                      taken
-                          ? '${DateFormat.jm().format(last!.at)}'
-                              '${doses.length > 1 ? ' ×${doses.length}' : ''}'
-                              '${last.byName.isEmpty ? '' : ' · ${last.byName}'}'
-                          : 'Tap when taken',
+                      status,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: taken ? FontWeight.w600 : FontWeight.normal,
-                        color: taken ? scheme.onSurface : scheme.onSurfaceVariant,
+                        fontWeight: count > 0 ? FontWeight.w600 : FontWeight.normal,
+                        color: count > 0 ? scheme.onSurface : scheme.onSurfaceVariant,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -306,6 +360,41 @@ class _MedCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A row of dots, one per planned dose, filled as doses are logged.
+class _DoseDots extends StatelessWidget {
+  const _DoseDots({required this.target, required this.taken, required this.color});
+
+  final int target;
+  final int taken;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final extra = taken > target ? taken - target : 0;
+    return Wrap(
+      spacing: 5,
+      runSpacing: 5,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (var i = 0; i < target; i++)
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: i < taken ? color : Colors.transparent,
+              shape: BoxShape.circle,
+              border: Border.all(color: i < taken ? color : scheme.outline, width: 2),
+            ),
+            child: i < taken ? Icon(Icons.check, size: 11, color: onColor(color)) : null,
+          ),
+        if (extra > 0)
+          Text('+$extra', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+      ],
     );
   }
 }

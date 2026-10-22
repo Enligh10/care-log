@@ -1,18 +1,23 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../app_state.dart';
 import '../config.dart';
 import '../models.dart';
+import 'bar_chart.dart';
 import 'log_tile.dart';
 import 'month_chart.dart';
 import 'theme.dart';
 
+part 'journal_chart.dart';
+
 // ------------------------------------------------------------------ view model
 
-enum ViewKind { allMeds, med, symptom, bp, hr, temp }
+enum ViewKind { everything, allMeds, med, symptom, bp, hr, temp }
 
-enum JournalMode { calendar, tracker }
+enum JournalMode { calendar, tracker, chart }
 
 class JournalView {
   const JournalView(this.kind, [this.key = '', this.label = '']);
@@ -31,6 +36,7 @@ class JournalView {
   int get hashCode => Object.hash(kind, key);
 }
 
+const _everything = JournalView(ViewKind.everything, '', 'Everything');
 const _allMeds = JournalView(ViewKind.allMeds, '', 'All meds');
 const _bp = JournalView(ViewKind.bp, '', 'Blood pressure');
 const _hr = JournalView(ViewKind.hr, '', 'Heart rate');
@@ -109,16 +115,38 @@ const _darkRed = Color(0xFFB8322E);
   return (_green, 'Normal');
 }
 
+Med? medById(AppState state, String id) {
+  for (final m in state.meds) {
+    if (m.id == id) return m;
+  }
+  return null;
+}
+
+/// Fill for a medicine on one day: solid when all planned doses were logged,
+/// faint when only some were.
+Color? doseFill(Med? med, int taken, ColorScheme scheme) {
+  if (taken <= 0) return null;
+  final c = med?.colorValue ?? scheme.primary;
+  if (med == null) return c;
+  return med.progress(taken) == DoseProgress.partial ? c.withValues(alpha: 0.42) : c;
+}
+
 List<(Color, String)> legendFor(JournalView v, AppState state, ColorScheme scheme) {
   switch (v.kind) {
+    case ViewKind.everything:
     case ViewKind.allMeds:
       return [
         for (final m in state.meds.where((m) => !m.isArchived)) (m.colorValue, m.name),
       ];
     case ViewKind.med:
-      Color c = scheme.primary;
-      for (final m in state.meds) {
-        if (m.id == v.key) c = m.colorValue;
+      final med = medById(state, v.key);
+      final c = med?.colorValue ?? scheme.primary;
+      if (med != null && med.dosesPerDay > 1) {
+        return [
+          (c, 'All ${med.dosesPerDay} doses'),
+          (c.withValues(alpha: 0.42), 'Some doses'),
+          (scheme.surfaceContainerHighest, 'Not logged'),
+        ];
       }
       return [(c, 'Taken'), (scheme.surfaceContainerHighest, 'Not logged')];
     case ViewKind.symptom:
@@ -159,19 +187,20 @@ class CellLook {
 CellLook cellLook(JournalView v, DayAgg? d, AppState state, ColorScheme scheme) {
   if (d == null) return const CellLook();
   switch (v.kind) {
+    case ViewKind.everything:
     case ViewKind.allMeds:
       return CellLook(dots: [
         for (final m in state.meds)
-          if ((d.doses[m.id] ?? 0) > 0) m.colorValue,
+          if ((d.doses[m.id] ?? 0) > 0) doseFill(m, d.doses[m.id]!, scheme)!,
       ]);
     case ViewKind.med:
       final n = d.doses[v.key] ?? 0;
       if (n == 0) return const CellLook();
-      Color c = scheme.primary;
-      for (final m in state.meds) {
-        if (m.id == v.key) c = m.colorValue;
-      }
-      return CellLook(fill: c, text: n > 1 ? '×$n' : '✓');
+      final med = medById(state, v.key);
+      return CellLook(
+        fill: doseFill(med, n, scheme),
+        text: med == null ? (n > 1 ? '×$n' : '✓') : med.countLabel(n),
+      );
     case ViewKind.symptom:
       final s = d.symptomMax[v.key];
       if (s == null) return const CellLook();
@@ -244,6 +273,7 @@ class _JournalPageState extends State<JournalPage> {
       if (!symptomNames.contains(n)) symptomNames.add(n);
     }
     return [
+      if (_mode == JournalMode.chart) _everything,
       _allMeds,
       for (final m in state.meds)
         if (!m.isArchived || medIdsLogged.contains(m.id)) JournalView(ViewKind.med, m.id, m.name),
@@ -312,9 +342,15 @@ class _JournalPageState extends State<JournalPage> {
             canGoForward: !_isCurrentMonth,
             mode: _mode,
             onShift: _shiftMonth,
-            onMode: (m) => setState(() => _mode = m),
+            onMode: (m) => setState(() {
+              if (m == JournalMode.chart && _mode != JournalMode.chart && _view == _allMeds) {
+                _view = _everything;
+              }
+              if (m != JournalMode.chart && _view == _everything) _view = _allMeds;
+              _mode = m;
+            }),
           ),
-          if (_mode == JournalMode.calendar)
+          if (_mode != JournalMode.tracker)
             _ViewChips(
               options: options,
               selected: view,
@@ -322,7 +358,17 @@ class _JournalPageState extends State<JournalPage> {
             ),
         ];
 
-        final main = _mode == JournalMode.calendar
+        final main = _mode == JournalMode.chart
+            ? ChartPanel(
+                view: view,
+                agg: agg,
+                month: _month,
+                daysInMonth: _daysInMonth,
+                onTapDay: (d) => _openDay(context, d, agg[d]),
+                onPickView: (v) => setState(() => _view = v),
+                symptomViews: options.where((o) => o.kind == ViewKind.symptom).toList(),
+              )
+            : _mode == JournalMode.calendar
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -339,7 +385,9 @@ class _JournalPageState extends State<JournalPage> {
             : _TrackerGrid(
                 month: _month,
                 agg: agg,
-                rows: options.where((o) => o.kind != ViewKind.allMeds).toList(),
+                rows: options
+                    .where((o) => o.kind != ViewKind.allMeds && o.kind != ViewKind.everything)
+                    .toList(),
                 onTapDay: (d) => _openDay(context, d, agg[d]),
                 onTapRow: (v) => setState(() {
                   _view = v;
@@ -348,7 +396,9 @@ class _JournalPageState extends State<JournalPage> {
               );
 
         final stats = _StatsCard(
-          view: _mode == JournalMode.tracker ? _allMeds : view,
+          view: _mode == JournalMode.tracker || view.kind == ViewKind.everything
+              ? _allMeds
+              : view,
           agg: agg,
           daysInMonth: _daysInMonth,
           elapsedDays: _elapsedDays,
@@ -356,7 +406,7 @@ class _JournalPageState extends State<JournalPage> {
         );
 
         return LayoutBuilder(builder: (context, c) {
-          final wide = c.maxWidth >= wideBreakpoint && _mode == JournalMode.calendar;
+          final wide = c.maxWidth >= wideBreakpoint && _mode != JournalMode.tracker;
           if (!wide) {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
@@ -446,6 +496,11 @@ class _MonthBar extends StatelessWidget {
               icon: Icon(Icons.grid_on),
               tooltip: 'Tracker',
             ),
+            ButtonSegment(
+              value: JournalMode.chart,
+              icon: Icon(Icons.bar_chart),
+              tooltip: 'Bar chart',
+            ),
           ],
           selected: {mode},
           onSelectionChanged: (s) => onMode(s.first),
@@ -476,6 +531,7 @@ class _ViewChips extends StatelessWidget {
             child: ChoiceChip(
               label: Text(o.label),
               avatar: Icon(switch (o.kind) {
+                ViewKind.everything => Icons.dashboard_outlined,
                 ViewKind.allMeds => Icons.medication,
                 ViewKind.med => Icons.medication_outlined,
                 ViewKind.symptom => Icons.sick_outlined,
@@ -736,7 +792,7 @@ class _TrackerGrid extends StatelessWidget {
         ]);
 
     String section(JournalView v) => switch (v.kind) {
-          ViewKind.med || ViewKind.allMeds => 'Medicines',
+          ViewKind.med || ViewKind.allMeds || ViewKind.everything => 'Medicines',
           ViewKind.bp || ViewKind.hr || ViewKind.temp => 'Vitals',
           ViewKind.symptom => 'Symptoms',
         };
@@ -794,7 +850,11 @@ class _TrackerGrid extends StatelessWidget {
     final look = cellLook(v, agg[d], state, scheme);
     final fill = look.fill;
     String? text;
-    if (fill != null && v.kind != ViewKind.med && v.kind != ViewKind.bp) {
+    if (fill != null && v.kind == ViewKind.med) {
+      final med = medById(state, v.key);
+      final n = agg[d]?.doses[v.key] ?? 0;
+      if (med != null && (med.dosesPerDay > 1 || n > 1)) text = '$n';
+    } else if (fill != null && v.kind != ViewKind.bp) {
       text = look.text?.split('.').first;
     }
     return GestureDetector(
@@ -847,6 +907,12 @@ class _StatsCard extends StatelessWidget {
 
   String _date(int d) => DateFormat('MMM d').format(DateTime(month.year, month.month, d));
 
+  /// All planned doses taken that day (any dose for "as needed" medicines).
+  static bool _complete(Med m, int taken) {
+    final p = m.progress(taken);
+    return p == DoseProgress.complete || p == DoseProgress.extra;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -856,6 +922,7 @@ class _StatsCard extends StatelessWidget {
     final children = <Widget>[];
 
     switch (view.kind) {
+      case ViewKind.everything:
       case ViewKind.allMeds:
         final meds = state.meds.where((m) {
           final logged = agg.values.any((d) => (d.doses[m.id] ?? 0) > 0);
@@ -863,8 +930,14 @@ class _StatsCard extends StatelessWidget {
         }).toList();
         if (meds.isEmpty) children.add(const Text('No medicines yet.'));
         for (final m in meds) {
-          final days = agg.values.where((d) => (d.doses[m.id] ?? 0) > 0).length;
+          final days = agg.values.where((d) => _complete(m, d.doses[m.id] ?? 0)).length;
           final frac = elapsedDays == 0 ? 0.0 : (days / elapsedDays).clamp(0.0, 1.0);
+          final doses = agg.values.fold<int>(0, (s, d) => s + (d.doses[m.id] ?? 0));
+          final right = m.asNeeded
+              ? '$doses doses on $days days'
+              : m.dosesPerDay > 1
+                  ? 'all doses $days of $elapsedDays days'
+                  : '$days of $elapsedDays days';
           children.add(Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Column(
@@ -872,7 +945,7 @@ class _StatsCard extends StatelessWidget {
               children: [
                 Row(children: [
                   Expanded(child: Text(m.name, style: theme.textTheme.bodyMedium)),
-                  Text('$days of $elapsedDays days', style: theme.textTheme.bodySmall),
+                  Text(right, style: theme.textTheme.bodySmall),
                 ]),
                 const SizedBox(height: 4),
                 ClipRRect(
@@ -889,14 +962,15 @@ class _StatsCard extends StatelessWidget {
           ));
         }
       case ViewKind.med:
-        final takenDays = <int>[
-          for (var d = 1; d <= daysInMonth; d++)
-            if ((agg[d]?.doses[view.key] ?? 0) > 0) d,
-        ];
+        final med = medById(state, view.key);
+        int n(int d) => agg[d]?.doses[view.key] ?? 0;
+        bool full(int d) => med == null ? n(d) > 0 : _complete(med, n(d));
         final doses = agg.values.fold<int>(0, (s, d) => s + (d.doses[view.key] ?? 0));
+        final daysAny = [for (var d = 1; d <= daysInMonth; d++) if (n(d) > 0) d];
+        final daysFull = [for (var d = 1; d <= daysInMonth; d++) if (full(d)) d];
         var best = 0, run = 0;
         for (var d = 1; d <= elapsedDays; d++) {
-          if ((agg[d]?.doses[view.key] ?? 0) > 0) {
+          if (full(d)) {
             run++;
             if (run > best) best = run;
           } else {
@@ -905,30 +979,42 @@ class _StatsCard extends StatelessWidget {
         }
         var current = 0;
         for (var d = elapsedDays; d >= 1; d--) {
-          if ((agg[d]?.doses[view.key] ?? 0) > 0) {
+          if (full(d)) {
             current++;
           } else if (d != elapsedDays) {
             break;
           }
         }
+        final multi = med != null && med.dosesPerDay > 1;
+        final asNeeded = med?.asNeeded ?? false;
         children.add(_StatWrap([
-          ('Days taken', '${takenDays.length} / $elapsedDays'),
+          if (asNeeded) ('Days used', '${daysAny.length} / $elapsedDays')
+          else if (multi) ('Days all ${med!.dosesPerDay} taken', '${daysFull.length} / $elapsedDays')
+          else ('Days taken', '${daysFull.length} / $elapsedDays'),
           ('Doses', '$doses'),
-          ('Longest streak', '$best days'),
-          ('Current streak', '$current days'),
+          if (asNeeded || multi)
+            ('Average per day', daysAny.isEmpty ? '–' : (doses / daysAny.length).toStringAsFixed(1))
+          else
+            ('Longest streak', '$best days'),
+          if (asNeeded)
+            ('Most in a day', '${[for (final d in daysAny) n(d)].fold<int>(0, (a, b) => a > b ? a : b)}')
+          else
+            ('Current streak', '$current days'),
         ]));
-        final missed = [
-          for (var d = 1; d < elapsedDays; d++)
-            if ((agg[d]?.doses[view.key] ?? 0) == 0) d,
-        ];
-        if (takenDays.isNotEmpty && missed.isNotEmpty) {
-          children.add(Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text(
-              'Not logged: ${missed.map(_date).join(', ')}',
-              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ));
+        if (!asNeeded) {
+          final missed = [for (var d = 1; d < elapsedDays; d++) if (n(d) == 0) d];
+          final partial = multi ? [for (var d = 1; d < elapsedDays; d++) if (n(d) > 0 && !full(d)) d] : <int>[];
+          final notes = [
+            if (daysAny.isNotEmpty && missed.isNotEmpty) 'Not logged: ${missed.map(_date).join(', ')}',
+            if (partial.isNotEmpty)
+              'Some doses: ${partial.map((d) => '${_date(d)} (${n(d)}/${med!.dosesPerDay})').join(', ')}',
+          ];
+          for (final t in notes) {
+            children.add(Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(t, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+            ));
+          }
         }
       case ViewKind.symptom:
         final pts = <(int, double)>[

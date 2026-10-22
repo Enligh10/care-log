@@ -6,4 +6,6 @@
     <color name="widget_row">#FF2A2F35</color>
     <color name="widget_row_stroke">#FF353B42</color>
     <color name="widget_row_taken">#FF234330</color>
+    <color name="widget_row_partial">#FF242E29</color>
+    <color name="widget_row_partial_stroke">#FF3F6B51</color>
 </resources>

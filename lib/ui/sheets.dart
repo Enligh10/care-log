@@ -144,6 +144,7 @@ class _MedEditorState extends State<_MedEditor> {
   late final _name = TextEditingController(text: widget.med?.name ?? '');
   late final _dose = TextEditingController(text: widget.med?.dose ?? '');
   late int _color = widget.med?.color ?? _nextColor();
+  late int _perDay = widget.med?.dosesPerDay ?? 1;
   bool _busy = false;
 
   int _nextColor() {
@@ -164,10 +165,11 @@ class _MedEditorState extends State<_MedEditor> {
     setState(() => _busy = true);
     try {
       if (widget.med == null) {
-        await widget.state.repo.addMed(name: name, dose: _dose.text, color: _color);
-      } else {
         await widget.state.repo
-            .updateMed(widget.med!.id, name: name, dose: _dose.text, color: _color);
+            .addMed(name: name, dose: _dose.text, color: _color, dosesPerDay: _perDay);
+      } else {
+        await widget.state.repo.updateMed(widget.med!.id,
+            name: name, dose: _dose.text, color: _color, dosesPerDay: _perDay);
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -195,6 +197,30 @@ class _MedEditorState extends State<_MedEditor> {
         TextField(
           controller: _dose,
           decoration: const InputDecoration(labelText: 'Dose (optional)', hintText: 'e.g. 50 mg'),
+        ),
+        const SizedBox(height: 16),
+        Text('How often', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final n in const [1, 2, 3, 4, 5, 6, 0])
+              ChoiceChip(
+                label: Text(n == 0 ? 'As needed' : '$n× a day'),
+                selected: _perDay == n,
+                onSelected: (_) => setState(() => _perDay = n),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _perDay == 0
+              ? 'No daily target. Each tap logs one dose.'
+              : _perDay == 1
+                  ? 'One tap logs today\'s dose.'
+                  : 'Each tap logs the next dose, up to $_perDay a day. Extra doses ask first.',
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 16),
         Text('Color', style: theme.textTheme.labelLarge),
@@ -258,7 +284,7 @@ Future<void> showMedActions(BuildContext context, AppState state, Med med) {
           ),
           ListTile(
             leading: const Icon(Icons.edit_outlined),
-            title: const Text('Edit name, dose or color'),
+            title: const Text('Edit name, dose, how often or color'),
             onTap: () {
               Navigator.pop(ctx);
               showMedEditor(context, state, med: med);

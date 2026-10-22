@@ -23,6 +23,9 @@ class Med {
   final String status;
   final int sort;
 
+  /// Planned doses per day. 0 means "as needed" (no daily target).
+  final int dosesPerDay;
+
   const Med({
     required this.id,
     required this.name,
@@ -30,11 +33,13 @@ class Med {
     required this.color,
     required this.status,
     required this.sort,
+    this.dosesPerDay = 1,
   });
 
   bool get isActive => status == 'active';
   bool get isPaused => status == 'paused';
   bool get isArchived => status == 'archived';
+  bool get asNeeded => dosesPerDay == 0;
   Color get colorValue => Color(color);
 
   factory Med.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -46,11 +51,37 @@ class Med {
       color: (d['color'] as num?)?.toInt() ?? medPalette.first,
       status: (d['status'] as String?) ?? 'active',
       sort: (d['sort'] as num?)?.toInt() ?? 0,
+      dosesPerDay: ((d['dosesPerDay'] as num?)?.toInt() ?? 1).clamp(0, 12),
     );
   }
 
   String get label => dose.isEmpty ? name : '$name · $dose';
+
+  /// "3× a day", "As needed", or "" for once a day.
+  String get scheduleLabel => switch (dosesPerDay) {
+        0 => 'As needed',
+        1 => '',
+        _ => '$dosesPerDay× a day',
+      };
+
+  /// How a day's dose count compares with the plan.
+  DoseProgress progress(int taken) {
+    if (taken <= 0) return DoseProgress.none;
+    if (asNeeded) return DoseProgress.complete;
+    if (taken < dosesPerDay) return DoseProgress.partial;
+    if (taken > dosesPerDay) return DoseProgress.extra;
+    return DoseProgress.complete;
+  }
+
+  /// Short status for a day, e.g. "2 of 3", "✓", "×2".
+  String countLabel(int taken) {
+    if (asNeeded) return taken == 0 ? '' : '×$taken';
+    if (dosesPerDay == 1) return taken == 0 ? '' : (taken == 1 ? '✓' : '×$taken');
+    return '$taken/$dosesPerDay';
+  }
 }
+
+enum DoseProgress { none, partial, complete, extra }
 
 class SymptomType {
   final String id;

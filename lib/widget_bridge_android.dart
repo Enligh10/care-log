@@ -14,8 +14,8 @@ import 'repo.dart';
 /// Fully qualified name of the Kotlin AppWidgetProvider.
 const _provider = 'app.carelog.care_log.MedWidgetProvider';
 
-/// The widget layout has room for this many medicine rows.
-const maxWidgetRows = 6;
+/// Upper limit on rows written to the widget (the list scrolls).
+const maxWidgetRows = 40;
 
 bool get widgetsSupported => defaultTargetPlatform == TargetPlatform.android;
 
@@ -65,21 +65,34 @@ Future<void> syncWidget(
           .where((l) => l.kind == LogKind.med && l.medId == m.id)
           .toList()
         ..sort((a, b) => b.at.compareTo(a.at));
+      final n = doses.length;
+      final progress = m.progress(n);
       String status;
-      if (doses.isEmpty) {
-        status = 'Tap to log';
+      if (n == 0) {
+        status = m.dosesPerDay > 1 ? '0 of ${m.dosesPerDay}' : 'Tap to log';
       } else {
-        final last = doses.first;
-        final who = last.byName.split(' ').first;
-        status = '✓ ${DateFormat.jm().format(last.at)}'
-            '${doses.length > 1 ? ' ×${doses.length}' : ''}'
-            '${who.isEmpty ? '' : ' · $who'}';
+        final time = DateFormat.jm().format(doses.first.at);
+        if (m.asNeeded) {
+          status = '×$n · $time';
+        } else if (m.dosesPerDay > 1) {
+          status = '$n of ${m.dosesPerDay} · $time';
+        } else {
+          final who = doses.first.byName.split(' ').first;
+          status = '✓ $time${n > 1 ? ' ×$n' : ''}${who.isEmpty ? '' : ' · $who'}';
+        }
       }
       if (notice != null && noticeMedId == m.id) status = notice;
       await _save('m${i}_id', m.id);
-      await _save('m${i}_name', m.label);
+      await _save('m${i}_name', m.dose.isEmpty ? m.name : '${m.name} · ${m.dose}');
       await _save('m${i}_status', status);
-      await _save('m${i}_taken', doses.isEmpty ? '0' : '1');
+      await _save(
+        'm${i}_taken',
+        switch (progress) {
+          DoseProgress.none => '0',
+          DoseProgress.partial => 'part',
+          DoseProgress.complete || DoseProgress.extra => '1',
+        },
+      );
       await _save('m${i}_color', '${m.color}');
     }
     await _stamp('Updated ${DateFormat.jm().format(DateTime.now())}');
@@ -113,8 +126,9 @@ Future<void> _setRowStatus(String? medId, String status) async {
 
 /// Runs in the background when a widget row or the refresh button is tapped.
 ///
-/// `carelog://log?id=<medId>` logs that medicine (unless it was already
-/// logged today, to avoid accidental double doses).
+/// `carelog://log?id=<medId>` logs the next dose of that medicine. To avoid
+/// accidental doses it won't log within a minute of the last one, or past
+/// the medicine's daily target (extra doses are logged in the app).
 /// `carelog://refresh` just reloads today's status.
 @pragma('vm:entry-point')
 Future<void> widgetBackgroundCallback(Uri? uri) async {
@@ -164,9 +178,16 @@ Future<void> widgetBackgroundCallback(Uri? uri) async {
       final matches = meds.where((m) => m.id == medId).toList();
       if (matches.isNotEmpty) {
         final med = matches.first;
-        final prior = today.where((l) => l.kind == LogKind.med && l.medId == med.id).toList();
-        if (prior.isNotEmpty) {
-          notice = 'Already logged ✓ ${DateFormat.jm().format(prior.first.at)}';
+        final prior = today.where((l) => l.kind == LogKind.med && l.medId == med.id).toList()
+          ..sort((a, b) => b.at.compareTo(a.at));
+        final sinceLast =
+            prior.isEmpty ? null : DateTime.now().difference(prior.first.at).inSeconds.abs();
+        if (sinceLast != null && sinceLast < 60) {
+          notice = 'Just logged ✓ ${DateFormat.jm().format(prior.first.at)}';
+        } else if (!med.asNeeded && prior.length >= med.dosesPerDay) {
+          notice = med.dosesPerDay == 1
+              ? 'Already logged ✓ ${DateFormat.jm().format(prior.first.at)}'
+              : 'All ${med.dosesPerDay} logged ✓ · extras in app';
         } else {
           final me = await repo.fetchMember(user.uid) ??
               Member(uid: user.uid, name: user.displayName ?? user.email?.split('@').first ?? '');

@@ -1,37 +1,35 @@
 package app.carelog.care_log
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
-import android.view.View
+import android.os.Build
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetBackgroundIntent
+import es.antonborri.home_widget.HomeWidgetBackgroundReceiver
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 
 /**
- * Home-screen widget listing today's medicines.
+ * Home-screen widget listing today's medicines in a scrolling list.
  *
  * The Flutter side writes each row's text into the widget storage (see
- * lib/widget_bridge_android.dart). Tapping a row sends `carelog://log?id=…`
- * to a background Dart callback, which logs the dose without opening the app.
+ * lib/widget_bridge_android.dart); [MedWidgetService] turns those into list
+ * rows. Tapping a row sends `carelog://log?id=…` to a background Dart
+ * callback, which logs the dose without opening the app.
  */
 class MedWidgetProvider : HomeWidgetProvider() {
 
-    private val rowIds = intArrayOf(R.id.row0, R.id.row1, R.id.row2, R.id.row3, R.id.row4, R.id.row5)
-    private val dotIds = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5)
-    private val nameIds = intArrayOf(R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4, R.id.name5)
-    private val statusIds =
-        intArrayOf(R.id.status0, R.id.status1, R.id.status2, R.id.status3, R.id.status4, R.id.status5)
-
+    @Suppress("DEPRECATION")
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
         widgetData: SharedPreferences,
     ) {
-        val count = (widgetData.getString("count", "0") ?: "0").toIntOrNull() ?: 0
         val message = widgetData.getString("message", "") ?: ""
         val updated = widgetData.getString("updated", "") ?: ""
         val openApp = HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java)
@@ -46,47 +44,25 @@ class MedWidgetProvider : HomeWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_title, openApp)
             views.setOnClickPendingIntent(R.id.widget_refresh, refresh)
 
-            if (count == 0) {
-                views.setViewVisibility(R.id.widget_message, View.VISIBLE)
-                views.setTextViewText(
-                    R.id.widget_message,
-                    if (message.isEmpty()) "Open Care Log to set up." else message,
-                )
-                views.setOnClickPendingIntent(R.id.widget_message, openApp)
-            } else {
-                views.setViewVisibility(R.id.widget_message, View.GONE)
-            }
+            // Shown by the list when it has no rows.
+            views.setTextViewText(
+                R.id.widget_message,
+                if (message.isEmpty()) "Open Care Log to set up." else message,
+            )
+            views.setOnClickPendingIntent(R.id.widget_message, openApp)
 
-            for (i in rowIds.indices) {
-                if (i >= count) {
-                    views.setViewVisibility(rowIds[i], View.GONE)
-                    continue
-                }
-                val medId = widgetData.getString("m${i}_id", "") ?: ""
-                val color = (widgetData.getString("m${i}_color", "") ?: "").toLongOrNull()?.toInt()
-                    ?: 0xFF8A94A0.toInt()
-                val taken = widgetData.getString("m${i}_taken", "0") == "1"
-
-                views.setViewVisibility(rowIds[i], View.VISIBLE)
-                views.setTextViewText(nameIds[i], widgetData.getString("m${i}_name", "") ?: "")
-                views.setTextViewText(statusIds[i], widgetData.getString("m${i}_status", "") ?: "")
-                views.setInt(dotIds[i], "setColorFilter", color)
-                views.setInt(
-                    rowIds[i],
-                    "setBackgroundResource",
-                    if (taken) R.drawable.widget_row_taken else R.drawable.widget_row,
-                )
-                views.setOnClickPendingIntent(
-                    rowIds[i],
-                    HomeWidgetBackgroundIntent.getBroadcast(
-                        context,
-                        Uri.parse("carelog://log?id=" + Uri.encode(medId)),
-                    ),
-                )
+            // The scrolling list of medicines.
+            val listIntent = Intent(context, MedWidgetService::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
+            views.setRemoteAdapter(R.id.med_list, listIntent)
+            views.setEmptyView(R.id.med_list, R.id.widget_message)
+            views.setPendingIntentTemplate(R.id.med_list, logTemplate(context))
 
             views.setTextViewText(R.id.widget_footer, updated)
             appWidgetManager.updateAppWidget(widgetId, views)
+            appWidgetManager.notifyAppWidgetViewDataChanged(widgetId, R.id.med_list)
         }
 
         // If the data is old (e.g. a dose was logged on another phone while
@@ -100,6 +76,21 @@ class MedWidgetProvider : HomeWidgetProvider() {
                 // Nothing to do; the next update will try again.
             }
         }
+    }
+
+    /**
+     * Template for row taps. Each row fills in its own `carelog://log?id=…`
+     * data, so this must be mutable (it is explicit, so that's allowed).
+     */
+    private fun logTemplate(context: Context): PendingIntent {
+        val intent = Intent(context, HomeWidgetBackgroundReceiver::class.java).apply {
+            action = "es.antonborri.home_widget.action.BACKGROUND"
+        }
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags = flags or PendingIntent.FLAG_MUTABLE
+        }
+        return PendingIntent.getBroadcast(context, 1, intent, flags)
     }
 
     companion object {

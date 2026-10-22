@@ -18,6 +18,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:paddingStart="4dp"
             android:text="@string/carelog_widget_title"
             android:textColor="@color/widget_text"
@@ -35,256 +37,30 @@
             android:textSize="20sp" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/widget_message"
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:padding="4dp"
-        android:textColor="@color/widget_subtext"
-        android:textSize="13sp"
-        android:visibility="gone" />
-
-    <LinearLayout
-        android:id="@+id/row0"
-        android:layout_width="match_parent"
-        android:layout_height="42dp"
+        android:layout_height="0dp"
         android:layout_marginTop="6dp"
-        android:background="@drawable/widget_row"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
+        android:layout_weight="1">
 
-        <ImageView
-            android:id="@+id/dot0"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
+        <ListView
+            android:id="@+id/med_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@null"
+            android:dividerHeight="6dp"
+            android:scrollbarStyle="outsideOverlay" />
 
         <TextView
-            android:id="@+id/name0"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_text"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/status0"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:maxLines="1"
+            android:id="@+id/widget_message"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="@string/carelog_widget_setup"
             android:textColor="@color/widget_subtext"
-            android:textSize="12sp" />
-    </LinearLayout>
-    <LinearLayout
-        android:id="@+id/row1"
-        android:layout_width="match_parent"
-        android:layout_height="42dp"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/widget_row"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/dot1"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
-
-        <TextView
-            android:id="@+id/name1"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_text"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/status1"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:maxLines="1"
-            android:textColor="@color/widget_subtext"
-            android:textSize="12sp" />
-    </LinearLayout>
-    <LinearLayout
-        android:id="@+id/row2"
-        android:layout_width="match_parent"
-        android:layout_height="42dp"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/widget_row"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/dot2"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
-
-        <TextView
-            android:id="@+id/name2"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_text"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/status2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:maxLines="1"
-            android:textColor="@color/widget_subtext"
-            android:textSize="12sp" />
-    </LinearLayout>
-    <LinearLayout
-        android:id="@+id/row3"
-        android:layout_width="match_parent"
-        android:layout_height="42dp"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/widget_row"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/dot3"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
-
-        <TextView
-            android:id="@+id/name3"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_text"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/status3"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:maxLines="1"
-            android:textColor="@color/widget_subtext"
-            android:textSize="12sp" />
-    </LinearLayout>
-    <LinearLayout
-        android:id="@+id/row4"
-        android:layout_width="match_parent"
-        android:layout_height="42dp"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/widget_row"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/dot4"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
-
-        <TextView
-            android:id="@+id/name4"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_text"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/status4"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:maxLines="1"
-            android:textColor="@color/widget_subtext"
-            android:textSize="12sp" />
-    </LinearLayout>
-    <LinearLayout
-        android:id="@+id/row5"
-        android:layout_width="match_parent"
-        android:layout_height="42dp"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/widget_row"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/dot5"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_dot" />
-
-        <TextView
-            android:id="@+id/name5"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_text"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/status5"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:maxLines="1"
-            android:textColor="@color/widget_subtext"
-            android:textSize="12sp" />
-    </LinearLayout>
+            android:textSize="13sp" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/widget_footer"
